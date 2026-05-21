@@ -1,0 +1,12 @@
+---
+# NLP dataset mount used by the demo application.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nlp-dataset-configmap
+  namespace: nlp-prediction
+  annotations:
+    description: "Mount point for the Amazon product dataset used by the NLP demo."
+data:
+  amazon.csv.zip: |
+    Placeholder for amazon.csv.zip content or a generated dataset reference.

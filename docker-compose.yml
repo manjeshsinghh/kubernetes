@@ -1,0 +1,73 @@
+services:
+  nlp-prediction-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - LOG_LEVEL=debug
+    networks:
+      - nlp-network
+
+  nlp-prediction-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    ports:
+      - "8054:8054"
+    volumes:
+      - .:/app
+    environment:
+      - API_URL=http://nlp-prediction-api:8000
+    depends_on:
+      - nlp-prediction-api
+    networks:
+      - nlp-network
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus-local.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    depends_on:
+      - nlp-prediction-api
+      - cadvisor
+    networks:
+      - nlp-network
+
+  grafana:
+    image: grafana/grafana:10.0.3
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - nlp-network
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    ports:
+      - "8080:8080"
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - nlp-network
+
+networks:
+  nlp-network:
+    driver: bridge

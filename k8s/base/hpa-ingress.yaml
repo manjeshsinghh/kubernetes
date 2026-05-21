@@ -1,0 +1,109 @@
+---
+# Horizontal Pod Autoscaler for the NLP API.
+# NLP generation traffic can spike during demos, testing, or concurrent use.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nlp-prediction-api-hpa
+  namespace: nlp-prediction
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nlp-prediction-api
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# Ingress exposing the API and Streamlit UI.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nlp-prediction-ingress
+  namespace: nlp-prediction
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: nlp.yourdomain.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: nlp-prediction-api-service
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nlp-prediction-ui-service
+                port:
+                  number: 8054
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nlp-prediction-ui
+  namespace: nlp-prediction
+  labels:
+    app: nlp-prediction-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nlp-prediction-ui
+  template:
+    metadata:
+      labels:
+        app: nlp-prediction-ui
+    spec:
+      containers:
+        - name: ui
+          image: 193926907633.dkr.ecr.ap-south-1.amazonaws.com/nlp-prediction-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8054
+          env:
+            - name: API_URL
+              value: "http://nlp-prediction-api-service:8000"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nlp-prediction-ui-service
+  namespace: nlp-prediction
+spec:
+  selector:
+    app: nlp-prediction-ui
+  ports:
+    - port: 8054
+      targetPort: 8054
+  type: ClusterIP
